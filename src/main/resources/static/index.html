@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Loja de Carros</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            margin-top: 30px;
+        }
+
+        input,
+        select {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .btn-salvar {
+            background-color: #198754;
+            color: white;
+        }
+
+        .btn-editar {
+            background-color: #ffc107;
+        }
+
+        .btn-excluir {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-cancelar {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #eee;
+        }
+
+        .formulario {
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .mensagem {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Loja de Carros</h1>
+
+    <!-- FORMULÁRIO DE USUÁRIO -->
+
+    <h2>Cadastro de Usuário</h2>
+
+    <div class="formulario">
+
+        <input
+                type="hidden"
+                id="usuarioId"
+        >
+
+        <input
+                type="text"
+                id="nome"
+                placeholder="Nome"
+        >
+
+        <input
+                type="email"
+                id="email"
+                placeholder="Email"
+        >
+
+        <select id="papel">
+
+            <option value="">
+                Selecione o papel
+            </option>
+
+            <option value="CLIENTE">
+                Cliente
+            </option>
+
+            <option value="VENDEDOR">
+                Vendedor
+            </option>
+
+            <option value="GERENTE">
+                Gerente
+            </option>
+
+        </select>
+
+        <br>
+
+        <button
+                class="btn-salvar"
+                onclick="salvarUsuario()"
+        >
+            Salvar
+        </button>
+
+        <button
+                class="btn-cancelar"
+                onclick="limparFormulario()"
+        >
+            Limpar
+        </button>
+
+        <div
+                id="mensagem"
+                class="mensagem"
+        ></div>
+
+    </div>
+
+
+    <!-- LISTAGEM DE USUÁRIOS -->
+
+    <h2>Usuários cadastrados</h2>
+
+    <button
+            onclick="listarUsuarios()"
+    >
+        Atualizar lista
+    </button>
+
+    <table>
+
+        <thead>
+
+        <tr>
+
+            <th>ID</th>
+
+            <th>Nome</th>
+
+            <th>Email</th>
+
+            <th>Papel</th>
+
+            <th>Ações</th>
+
+        </tr>
+
+        </thead>
+
+        <tbody id="tabelaUsuarios">
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+<script>
+
+    // =====================================
+    // LISTAR USUÁRIOS
+    // =====================================
+
+    function listarUsuarios() {
+
+        fetch("/usuario/listar")
+
+            .then(response => {
+
+                if (!response.ok) {
+                    throw new Error(
+                        "Erro ao buscar usuários."
+                    );
+                }
+
+                return response.json();
+
+            })
+
+            .then(usuarios => {
+
+                const tabela =
+                    document.getElementById(
+                        "tabelaUsuarios"
+                    );
+
+                tabela.innerHTML = "";
+
+                usuarios.forEach(usuario => {
+
+                    tabela.innerHTML += `
+
+                        <tr>
+
+                            <td>
+                                ${usuario.id}
+                            </td>
+
+                            <td>
+                                ${usuario.nome}
+                            </td>
+
+                            <td>
+                                ${usuario.email}
+                            </td>
+
+                            <td>
+                                ${usuario.papel}
+                            </td>
+
+                            <td>
+
+                                <button
+                                    class="btn-editar"
+                                    onclick="editarUsuario(
+                                        ${usuario.id},
+                                        '${usuario.nome}',
+                                        '${usuario.email}',
+                                        '${usuario.papel}'
+                                    )"
+                                >
+                                    Editar
+                                </button>
+
+                                <button
+                                    class="btn-excluir"
+                                    onclick="excluirUsuario(
+                                        ${usuario.id}
+                                    )"
+                                >
+                                    Excluir
+                                </button>
+
+                            </td>
+
+                        </tr>
+
+                    `;
+
+                });
+
+            })
+
+            .catch(error => {
+
+                mostrarMensagem(
+                    error.message,
+                    "red"
+                );
+
+            });
+    }
+
+
+    // =====================================
+    // SALVAR / ATUALIZAR USUÁRIO
+    // =====================================
+
+    function salvarUsuario() {
+
+        const id =
+            document.getElementById(
+                "usuarioId"
+            ).value;
+
+        const nome =
+            document.getElementById(
+                "nome"
+            ).value;
+
+        const email =
+            document.getElementById(
+                "email"
+            ).value;
+
+        const papel =
+            document.getElementById(
+                "papel"
+            ).value;
+
+
+        if (!nome || !email || !papel) {
+
+            mostrarMensagem(
+                "Preencha todos os campos.",
+                "red"
+            );
+
+            return;
+        }
+
+
+        const usuario = {
+
+            nome: nome,
+
+            email: email,
+
+            papel: papel
+
+        };
+
+
+        let url = "/usuario/salvar";
+
+        let metodo = "POST";
+
+
+        // Se tiver ID, significa que estamos editando
+
+        if (id) {
+
+            url = "/usuario/" + id;
+
+            metodo = "PUT";
+
+        }
+
+
+        fetch(url, {
+
+            method: metodo,
+
+            headers: {
+
+                "Content-Type":
+                    "application/json"
+
+            },
+
+            body: JSON.stringify(usuario)
+
+        })
+
+        .then(response => {
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Erro ao salvar usuário."
+                );
+
+            }
+
+            return response.json();
+
+        })
+
+        .then(usuario => {
+
+            mostrarMensagem(
+                "Usuário salvo com sucesso!",
+                "green"
+            );
+
+            limparFormulario();
+
+            listarUsuarios();
+
+        })
+
+        .catch(error => {
+
+            mostrarMensagem(
+                error.message,
+                "red"
+            );
+
+        });
+
+    }
+
+
+    // =====================================
+    // EDITAR USUÁRIO
+    // =====================================
+
+    function editarUsuario(
+        id,
+        nome,
+        email,
+        papel
+    ) {
+
+        document.getElementById(
+            "usuarioId"
+        ).value = id;
+
+        document.getElementById(
+            "nome"
+        ).value = nome;
+
+        document.getElementById(
+            "email"
+        ).value = email;
+
+        document.getElementById(
+            "papel"
+        ).value = papel;
+
+        mostrarMensagem(
+            "Editando usuário " + id,
+            "blue"
+        );
+
+    }
+
+
+    // =====================================
+    // EXCLUIR USUÁRIO
+    // =====================================
+
+    function excluirUsuario(id) {
+
+        const confirmar =
+            confirm(
+                "Deseja realmente excluir este usuário?"
+            );
+
+        if (!confirmar) {
+            return;
+        }
+
+
+        fetch(
+            "/usuario/" + id,
+            {
+                method: "DELETE"
+            }
+        )
+
+        .then(response => {
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Erro ao excluir usuário."
+                );
+
+            }
+
+        })
+
+        .then(() => {
+
+            mostrarMensagem(
+                "Usuário excluído com sucesso!",
+                "green"
+            );
+
+            listarUsuarios();
+
+        })
+
+        .catch(error => {
+
+            mostrarMensagem(
+                error.message,
+                "red"
+            );
+
+        });
+
+    }
+
+
+    // =====================================
+    // LIMPAR FORMULÁRIO
+    // =====================================
+
+    function limparFormulario() {
+
+        document.getElementById(
+            "usuarioId"
+        ).value = "";
+
+        document.getElementById(
+            "nome"
+        ).value = "";
+
+        document.getElementById(
+            "email"
+        ).value = "";
+
+        document.getElementById(
+            "papel"
+        ).value = "";
+
+        document.getElementById(
+            "mensagem"
+        ).innerText = "";
+
+    }
+
+
+    // =====================================
+    // MOSTRAR MENSAGEM
+    // =====================================
+
+    function mostrarMensagem(
+        texto,
+        cor
+    ) {
+
+        const mensagem =
+            document.getElementById(
+                "mensagem"
+            );
+
+        mensagem.innerText = texto;
+
+        mensagem.style.color = cor;
+
+    }
+
+
+    // =====================================
+    // CARREGAR USUÁRIOS AO ABRIR A PÁGINA
+    // =====================================
+
+    window.onload = function () {
+
+        listarUsuarios();
+
+    };
+
+</script>
+
+</body>
+
+</html>
