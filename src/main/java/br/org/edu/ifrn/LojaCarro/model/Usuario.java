@@ -1,31 +1,13 @@
 package br.org.edu.ifrn.LojaCarro.model;
 
-import jakarta.persistence.*;
-
-@Entity
 public class Usuario {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
     private String nome;
-
-    private String email;
-
     private String papel;
-
 
     public Usuario() {
     }
-
-
-    public Usuario(String nome, String email, String papel) {
-        this.nome = nome;
-        this.email = email;
-        this.papel = papel;
-    }
-
 
     public Long getId() {
         return id;
@@ -35,7 +17,6 @@ public class Usuario {
         this.id = id;
     }
 
-
     public String getNome() {
         return nome;
     }
@@ -43,16 +24,6 @@ public class Usuario {
     public void setNome(String nome) {
         this.nome = nome;
     }
-
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
 
     public String getPapel() {
         return papel;

@@ -2,6 +2,11 @@
 package br.org.edu.ifrn.LojaCarro.controllers;
 
 import br.org.edu.ifrn.LojaCarro.CarroException;
+import br.org.edu.ifrn.LojaCarro.services.AutorizacaoService;
+import br.org.edu.ifrn.LojaCarro.client.UsuarioClient;
+import br.org.edu.ifrn.LojaCarro.services.LogService;
+import br.org.edu.ifrn.LojaCarro.model.Usuario;
+import br.org.edu.ifrn.LojaCarro.dto.CarroRequest;
 import br.org.edu.ifrn.LojaCarro.model.Carro;
 import br.org.edu.ifrn.LojaCarro.services.CarroService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,26 +23,70 @@ public class CarroController {
 
     @Autowired
     private CarroService carroService;
+    @Autowired
+    private UsuarioClient usuarioClient;
+    @Autowired
+    private AutorizacaoService autorizacaoService;
+    @Autowired
+    private LogService logService;
+    @PostMapping("/salvar")
+    public ResponseEntity<Carro> salvarCarro(
+            @RequestBody CarroRequest request) {
 
-    // Salvar carro (corrigido para POST)
-    @PostMapping("salvar")
-    public ResponseEntity<Carro> salvarCarro(@RequestBody Carro c) {
-        Carro savedCarro = carroService.save(c);
+        Usuario usuario = autorizacaoService.verificarPermissao(
+                request.getUsuarioId(),
+                "CADASTRAR"
+        );
+        Carro carro = new Carro();
+
+        carro.setModelo(request.getModelo());
+        carro.setAno(request.getAno());
+        carro.setPreco(request.getPreco());
+
+        Carro savedCarro = carroService.save(carro);
+
+        logService.registrar(
+                usuario,
+                "CADASTRO DE CARRO - ID=" + savedCarro.getId()
+        );
+
         return ResponseEntity.ok(savedCarro);
     }
-
     // Atualizar carro (por ID)
     @PutMapping("/{id}")
-    public ResponseEntity<Carro> atualizarCarro(@PathVariable Long id, @RequestBody Carro c) {
-        c.setId(id);  // Define o ID no objeto
-        Carro updatedCarro = carroService.update(c);
+    public ResponseEntity<Carro> atualizarCarro(
+            @PathVariable Long id,
+            @RequestBody CarroRequest request) {
+
+        autorizacaoService.verificarPermissao(
+                request.getUsuarioId(),
+                "ATUALIZAR"
+        );
+
+        Carro carro = new Carro();
+
+        carro.setId(id);
+        carro.setModelo(request.getModelo());
+        carro.setAno(request.getAno());
+        carro.setPreco(request.getPreco());
+
+        Carro updatedCarro = carroService.update(carro);
+
         return ResponseEntity.ok(updatedCarro);
     }
-
     // Deletar carro (por ID)
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletarCarro(@PathVariable Long id) {
+    public ResponseEntity<Void> deletarCarro(
+            @PathVariable Long id,
+            @RequestParam Long usuarioId) {
+
+        autorizacaoService.verificarPermissao(
+                usuarioId,
+                "EXCLUIR"
+        );
+
         carroService.deleteById(id);
+
         return ResponseEntity.noContent().build();
     }
 
@@ -46,6 +95,14 @@ public class CarroController {
     public ResponseEntity<Carro> pesquisarCarroPorId(@PathVariable Long id) {
         Optional<Carro> carro = carroService.findById(id);
         return carro.map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+    }
+    @GetMapping("/testeUsuario/{id}")
+    public ResponseEntity<Usuario> testeUsuario(
+            @PathVariable Long id) {
+
+        Usuario usuario = usuarioClient.buscarUsuario(id);
+
+        return ResponseEntity.ok(usuario);
     }
 
     // Pesquisar todos os carros
