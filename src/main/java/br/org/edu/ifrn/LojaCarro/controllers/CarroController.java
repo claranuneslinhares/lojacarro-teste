@@ -53,49 +53,76 @@ public class CarroController {
         return ResponseEntity.ok(savedCarro);
     }
     // Atualizar carro (por ID)
-    @PutMapping("/{id}")
+  @PutMapping("/{id}")
     public ResponseEntity<Carro> atualizarCarro(
-            @PathVariable Long id,
-            @RequestBody CarroRequest request) {
+        @PathVariable Long id,
+        @RequestBody CarroRequest request) {
 
-        autorizacaoService.verificarPermissao(
-                request.getUsuarioId(),
-                "ATUALIZAR"
-        );
+    Usuario usuario = autorizacaoService.verificarPermissao(
+            request.getUsuarioId(),
+            "ATUALIZAR"
+    );
 
-        Carro carro = new Carro();
+    Carro carro = new Carro();
 
-        carro.setId(id);
-        carro.setModelo(request.getModelo());
-        carro.setAno(request.getAno());
-        carro.setPreco(request.getPreco());
+    carro.setId(id);
+    carro.setModelo(request.getModelo());
+    carro.setAno(request.getAno());
+    carro.setPreco(request.getPreco());
 
-        Carro updatedCarro = carroService.update(carro);
+    Carro updatedCarro = carroService.update(carro);
 
-        return ResponseEntity.ok(updatedCarro);
-    }
+    logService.registrar(
+            usuario,
+            "ATUALIZAÇÃO DE CARRO - ID=" + id
+    );
+
+    return ResponseEntity.ok(updatedCarro);
+}
     // Deletar carro (por ID)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarCarro(
-            @PathVariable Long id,
-            @RequestParam Long usuarioId) {
+        @PathVariable Long id,
+        @RequestParam Long usuarioId) {
 
-        autorizacaoService.verificarPermissao(
-                usuarioId,
-                "EXCLUIR"
-        );
+    Usuario usuario = autorizacaoService.verificarPermissao(
+            usuarioId,
+            "EXCLUIR"
+    );
 
-        carroService.deleteById(id);
+    carroService.deleteById(id);
 
-        return ResponseEntity.noContent().build();
-    }
+    logService.registrar(
+            usuario,
+            "EXCLUSÃO DE CARRO - ID=" + id
+    );
 
+    return ResponseEntity.noContent().build();
+}
     // Pesquisar carro por ID
-    @GetMapping("/{id}")
-    public ResponseEntity<Carro> pesquisarCarroPorId(@PathVariable Long id) {
-        Optional<Carro> carro = carroService.findById(id);
-        return carro.map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+   @GetMapping("/{id}")
+    public ResponseEntity<Carro> pesquisarCarroPorId(
+        @PathVariable Long id,
+        @RequestParam Long usuarioId) {
+
+    Usuario usuario = autorizacaoService.verificarPermissao(
+            usuarioId,
+            "LISTAR"
+    );
+
+    Optional<Carro> carro = carroService.findById(id);
+
+    if (carro.isEmpty()) {
+        return ResponseEntity.notFound().build();
     }
+
+    logService.registrar(
+            usuario,
+            "CONSULTA DE CARRO - ID=" + id
+    );
+
+    return ResponseEntity.ok(carro.get());
+}
     @GetMapping("/testeUsuario/{id}")
     public ResponseEntity<Usuario> testeUsuario(
             @PathVariable Long id) {
@@ -106,11 +133,24 @@ public class CarroController {
     }
 
     // Pesquisar todos os carros
-    @GetMapping("/listarCarros")
-    public ResponseEntity<List<Carro>> pesquisarTodosCarros() {
-        List<Carro> carros = carroService.findAll();
-        return ResponseEntity.ok(carros);
-    }
+   @GetMapping("/listarCarros")
+    public ResponseEntity<List<Carro>> pesquisarTodosCarros(
+        @RequestParam Long usuarioId) {
+
+    Usuario usuario = autorizacaoService.verificarPermissao(
+            usuarioId,
+            "LISTAR"
+    );
+
+    List<Carro> carros = carroService.findAll();
+
+    logService.registrar(
+            usuario,
+            "LISTAGEM DE CARROS"
+    );
+
+    return ResponseEntity.ok(carros);
+}
 
     @PostMapping(value = "/getCarro", consumes = MediaType.TEXT_PLAIN_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Carro> pesquisarCarroPorModelo(@RequestBody String modelo) {
