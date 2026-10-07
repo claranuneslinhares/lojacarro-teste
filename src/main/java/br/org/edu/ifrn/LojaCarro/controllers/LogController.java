@@ -9,6 +9,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/logs")
+@CrossOrigin(origins = "*")
 public class LogController {
 
     @Autowired
