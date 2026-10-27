@@ -40,7 +40,16 @@
 			</exclusions>
 		</dependency>
 
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.rabbitmq</groupId>
+			<artifactId>amqp-client</artifactId>
+			<version>5.25.0</version>
 
+		</dependency>
 		<!-- LOG4J2 -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
