@@ -9,21 +9,20 @@ import java.nio.charset.StandardCharsets;
 
 public class enviar {
     public static void main(String[] args) {
+        long timestamp = System.currentTimeMillis();
 
-        String json = """
-        {
-            "id": 18,
-            "modelo": "Uno",
-            "ano": 2010,
-            "preco": 25000.0,
-             "timestamp": %d
-        }
-        """;
+        String json = "{"
+                + "\"id\": 20,"
+                + "\"modelo\": \"Civic\","
+                + "\"ano\": 2010,"
+                + "\"preco\": 25000.0,"
+                + "\"timestamp\": " + timestamp
+                + "}";
 
         enviarMensagem(json);
     }
 
-    private static final String HOST = "10.209.1.53";
+    private static final String HOST = "10.209.1.81";
     private static final int PORTA = 5672;
     private static final String USUARIO = "admin";
     private static final String SENHA = "admin";
