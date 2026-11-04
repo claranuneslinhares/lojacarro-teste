@@ -22,10 +22,10 @@ public class enviar {
         enviarMensagem(json);
     }
 
-    private static final String HOST = "10.209.1.81";
+    private static final String HOST = "15.228.215.36";
     private static final int PORTA = 5672;
-    private static final String USUARIO = "admin";
-    private static final String SENHA = "admin";
+    private static final String USUARIO = "aluno";
+    private static final String SENHA = "12345";
     private static final String FILA = "dupla_maria_lucas";
 
     public static void enviarMensagem(String json) {

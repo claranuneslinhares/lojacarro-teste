@@ -2,25 +2,26 @@
 package br.org.edu.ifrn.LojaCarro.controllers;
 
 import br.org.edu.ifrn.LojaCarro.CarroException;
-import br.org.edu.ifrn.LojaCarro.services.AutorizacaoService;
 import br.org.edu.ifrn.LojaCarro.client.UsuarioClient;
-import br.org.edu.ifrn.LojaCarro.services.LogService;
-import br.org.edu.ifrn.LojaCarro.model.Usuario;
 import br.org.edu.ifrn.LojaCarro.dto.CarroRequest;
-import br.org.edu.ifrn.LojaCarro.dto.CarroMensagemDTO;
+import br.org.edu.ifrn.LojaCarro.dto.LogMensagemDTO;
 import br.org.edu.ifrn.LojaCarro.model.Carro;
+import br.org.edu.ifrn.LojaCarro.model.Usuario;
+import br.org.edu.ifrn.LojaCarro.services.AutorizacaoService;
 import br.org.edu.ifrn.LojaCarro.services.CarroService;
-import br.org.edu.ifrn.LojaCarro.enviar;
+import br.org.edu.ifrn.LojaCarro.services.LogService;
+import br.org.edu.ifrn.LojaCarro.services.RabbitMQLogService;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/carro")
@@ -39,27 +40,33 @@ public class CarroController {
     @Autowired
     private LogService logService;
 
-    // Converte os dados do carro para JSON e envia ao RabbitMQ
-    private void enviarCarro(Carro carro) {
-        try {
-            CarroMensagemDTO dto = new CarroMensagemDTO(
-                    carro.getId(),
-                    carro.getModelo(),
-                    carro.getAno(),
-                    carro.getPreco()
-            );
+    @Autowired
+    private RabbitMQLogService rabbitMQLogService;
 
-            ObjectMapper mapper = new ObjectMapper();
-            String json = mapper.writeValueAsString(dto);
+    // Monta e envia uma mensagem de log para o RabbitMQ
+    private void enviarLogCarro(
+            Carro carro,
+            Long usuarioId,
+            String operacao) {
 
-            enviar.enviarMensagem(json);
+        Map<String, Object> dados = new HashMap<>();
 
-        } catch (Exception e) {
-            System.err.println(
-                    "Erro ao enviar carro para o RabbitMQ: "
-                            + e.getMessage()
-            );
-        }
+        dados.put("modelo", carro.getModelo());
+        dados.put("ano", carro.getAno());
+        dados.put("preco", carro.getPreco());
+
+        LogMensagemDTO mensagem = new LogMensagemDTO(
+                "CARRO",
+                operacao,
+                "Carro",
+                carro.getId(),
+                usuarioId,
+                Instant.now().toString(),
+                operacao + " de carro - ID=" + carro.getId(),
+                dados
+        );
+
+        rabbitMQLogService.enviarLog(mensagem);
     }
 
     // Salvar carro
@@ -79,11 +86,10 @@ public class CarroController {
 
         Carro savedCarro = carroService.save(carro);
 
-        enviarCarro(savedCarro);
-
-        logService.registrar(
-                usuario,
-                "CADASTRO DE CARRO - ID=" + savedCarro.getId()
+        enviarLogCarro(
+                savedCarro,
+                request.getUsuarioId(),
+                "CADASTRO"
         );
 
         return ResponseEntity.ok(savedCarro);
@@ -108,11 +114,10 @@ public class CarroController {
 
         Carro updatedCarro = carroService.update(carro);
 
-        enviarCarro(updatedCarro);
-
-        logService.registrar(
-                usuario,
-                "ATUALIZAÇÃO DE CARRO - ID=" + id
+        enviarLogCarro(
+                updatedCarro,
+                request.getUsuarioId(),
+                "ATUALIZACAO"
         );
 
         return ResponseEntity.ok(updatedCarro);
@@ -129,7 +134,6 @@ public class CarroController {
                 "EXCLUIR"
         );
 
-        // Busca os dados antes da exclusão para poder enviá-los
         Optional<Carro> carroOptional = carroService.findById(id);
 
         if (carroOptional.isEmpty()) {
@@ -140,11 +144,10 @@ public class CarroController {
 
         carroService.deleteById(id);
 
-        enviarCarro(carro);
-
-        logService.registrar(
-                usuario,
-                "EXCLUSÃO DE CARRO - ID=" + id
+        enviarLogCarro(
+                carro,
+                usuarioId,
+                "EXCLUSAO"
         );
 
         return ResponseEntity.noContent().build();
@@ -232,7 +235,11 @@ public class CarroController {
 
         Carro carro = carroService.deleteByModelo(modelo.trim());
 
-        enviarCarro(carro);
+        enviarLogCarro(
+                carro,
+                null,
+                "EXCLUSAO"
+        );
 
         return ResponseEntity.ok(
                 "Carro deletado: " + carro.getModelo()
@@ -262,7 +269,11 @@ public class CarroController {
         Carro updatedCarro =
                 carroService.updateByModelo(modelo, preco);
 
-        enviarCarro(updatedCarro);
+        enviarLogCarro(
+                updatedCarro,
+                null,
+                "ATUALIZACAO"
+        );
 
         return ResponseEntity.ok(updatedCarro);
     }
@@ -279,6 +290,7 @@ public class CarroController {
         return ResponseEntity.ok("Bom dia, " + nome.trim());
     }
 
+    // Converter preço para número
     private double parsePreco(String preco) {
         try {
             return Double.parseDouble(preco);
