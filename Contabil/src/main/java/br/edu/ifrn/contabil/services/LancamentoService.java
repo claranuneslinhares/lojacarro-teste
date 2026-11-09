@@ -3,6 +3,7 @@ package br.edu.ifrn.contabil.services;
 import br.edu.ifrn.contabil.client.VendaClient;
 import br.edu.ifrn.contabil.dto.LancamentoDTO;
 import br.edu.ifrn.contabil.dto.LogMensagemDTO;
+import br.edu.ifrn.contabil.messaging.AdmMessageProducer;
 import br.edu.ifrn.contabil.messaging.RabbitMQLogService;
 import br.edu.ifrn.contabil.model.Lancamento;
 import br.edu.ifrn.contabil.repository.LancamentoRepository;
@@ -20,15 +21,18 @@ public class LancamentoService {
     private final LancamentoRepository repository;
     private final VendaClient vendaClient;
     private final RabbitMQLogService logService;
+    private final AdmMessageProducer admProducer;
 
     public LancamentoService(
             LancamentoRepository repository,
             VendaClient vendaClient,
-            RabbitMQLogService logService) {
+            RabbitMQLogService logService,
+            AdmMessageProducer admProducer) {
 
         this.repository = repository;
         this.vendaClient = vendaClient;
         this.logService = logService;
+        this.admProducer = admProducer;
     }
 
     public Lancamento cadastrar(LancamentoDTO dto) {
@@ -44,6 +48,11 @@ public class LancamentoService {
         lancamento.setDataLancamento(LocalDateTime.now());
 
         Lancamento salvo = repository.save(lancamento);
+
+        admProducer.notificarAdm(
+            "CADASTRO",
+            "Lançamento contábil cadastrado. ID: " + salvo.getId()
+        );
 
         enviarLog("CADASTRO", salvo);
 
@@ -74,6 +83,11 @@ public class LancamentoService {
 
         Lancamento atualizado = repository.save(lancamento);
 
+        admProducer.notificarAdm(
+            "ATUALIZACAO",
+            "Lançamento contábil atualizado. ID: " + atualizado.getId()
+        );
+
         enviarLog("ATUALIZACAO", atualizado);
 
         return atualizado;
@@ -84,6 +98,11 @@ public class LancamentoService {
         Lancamento lancamento = buscarPorId(id);
 
         repository.delete(lancamento);
+
+        admProducer.notificarAdm(
+            "EXCLUSAO",
+            "Lançamento contábil excluído. ID: " + id
+        );
 
         enviarLog("EXCLUSAO", lancamento);
     }

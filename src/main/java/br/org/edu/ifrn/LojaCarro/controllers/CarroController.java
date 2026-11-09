@@ -5,6 +5,7 @@ import br.org.edu.ifrn.LojaCarro.CarroException;
 import br.org.edu.ifrn.LojaCarro.client.UsuarioClient;
 import br.org.edu.ifrn.LojaCarro.dto.CarroRequest;
 import br.org.edu.ifrn.LojaCarro.dto.LogMensagemDTO;
+import br.org.edu.ifrn.LojaCarro.messaging.AdmMessageProducer;
 import br.org.edu.ifrn.LojaCarro.model.Carro;
 import br.org.edu.ifrn.LojaCarro.model.Usuario;
 import br.org.edu.ifrn.LojaCarro.services.AutorizacaoService;
@@ -42,6 +43,9 @@ public class CarroController {
 
     @Autowired
     private RabbitMQLogService rabbitMQLogService;
+
+        @Autowired
+        private AdmMessageProducer admProducer;
 
     // Monta e envia uma mensagem de log para o RabbitMQ
     private void enviarLogCarro(
@@ -86,6 +90,11 @@ public class CarroController {
 
         Carro savedCarro = carroService.save(carro);
 
+        admProducer.notificarAdm(
+                "CADASTRO",
+                "Carro cadastrado. ID: " + savedCarro.getId()
+        );
+
         enviarLogCarro(
                 savedCarro,
                 request.getUsuarioId(),
@@ -113,6 +122,11 @@ public class CarroController {
         carro.setPreco(request.getPreco());
 
         Carro updatedCarro = carroService.update(carro);
+
+        admProducer.notificarAdm(
+                "ATUALIZACAO",
+                "Carro atualizado. ID: " + updatedCarro.getId()
+        );
 
         enviarLogCarro(
                 updatedCarro,
@@ -143,6 +157,11 @@ public class CarroController {
         Carro carro = carroOptional.get();
 
         carroService.deleteById(id);
+
+        admProducer.notificarAdm(
+                "EXCLUSAO",
+                "Carro excluído. ID: " + id
+        );
 
         enviarLogCarro(
                 carro,

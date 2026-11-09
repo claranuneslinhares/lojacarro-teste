@@ -7,7 +7,7 @@ import br.edu.ifrn.testdrive.dto.TestDriveDTO;
 import br.edu.ifrn.testdrive.messaging.RabbitMQLogService;
 import br.edu.ifrn.testdrive.model.TestDrive;
 import br.edu.ifrn.testdrive.repository.TestDriveRepository;
-
+import br.edu.ifrn.testdrive.messaging.AdmMessageProducer;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -22,17 +22,20 @@ public class TestDriveService {
     private final CarroClient carroClient;
     private final UsuarioClient usuarioClient;
     private final RabbitMQLogService logService;
+    private final AdmMessageProducer admProducer;
 
     public TestDriveService(
             TestDriveRepository repository,
             CarroClient carroClient,
             UsuarioClient usuarioClient,
-            RabbitMQLogService logService) {
+            RabbitMQLogService logService,
+            AdmMessageProducer admProducer) {
 
         this.repository = repository;
         this.carroClient = carroClient;
         this.usuarioClient = usuarioClient;
         this.logService = logService;
+        this.admProducer = admProducer;
     }
 
     public TestDrive cadastrar(TestDriveDTO dto) {
@@ -48,6 +51,11 @@ public class TestDriveService {
         testDrive.setStatus("AGENDADO");
 
         TestDrive salvo = repository.save(testDrive);
+
+        admProducer.notificarAdm(
+            "CADASTRO",
+            "Test drive cadastrado. ID: " + salvo.getId()
+        );
 
         enviarLog("CADASTRO", salvo);
 
@@ -82,6 +90,11 @@ public class TestDriveService {
 
         TestDrive atualizado = repository.save(testDrive);
 
+        admProducer.notificarAdm(
+            "ATUALIZACAO",
+            "Test drive atualizado. ID: " + atualizado.getId()
+        );
+
         enviarLog("ATUALIZACAO", atualizado);
 
         return atualizado;
@@ -95,6 +108,11 @@ public class TestDriveService {
 
         TestDrive cancelado = repository.save(testDrive);
 
+        admProducer.notificarAdm(
+            "CANCELAMENTO",
+            "Test drive cancelado. ID: " + cancelado.getId()
+        );
+
         enviarLog("CANCELAMENTO", cancelado);
 
         return cancelado;
@@ -105,6 +123,11 @@ public class TestDriveService {
         TestDrive testDrive = buscarPorId(id);
 
         repository.delete(testDrive);
+
+        admProducer.notificarAdm(
+            "EXCLUSAO",
+            "Test drive excluído. ID: " + id
+        );
 
         enviarLog("EXCLUSAO", testDrive);
     }

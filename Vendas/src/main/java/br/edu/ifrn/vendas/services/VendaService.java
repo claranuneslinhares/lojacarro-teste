@@ -86,6 +86,11 @@ public class VendaService {
 
         Venda atualizada = repository.save(venda);
 
+        admProducer.notificarAdm(
+            "ATUALIZACAO",
+            "Venda atualizada. ID: " + atualizada.getId()
+        );
+
         enviarLog("ATUALIZACAO", atualizada);
 
         return atualizada;
@@ -97,7 +102,10 @@ public class VendaService {
         venda.setStatus("CANCELADA");
 
         Venda cancelada = repository.save(venda);
-
+            admProducer.notificarAdm(
+        "CANCELAMENTO",
+        "Venda cancelada. ID: " + cancelada.getId()
+);
         enviarLog("CANCELAMENTO", cancelada);
 
         return cancelada;
@@ -109,6 +117,10 @@ public class VendaService {
         repository.delete(venda);
 
         enviarLog("EXCLUSAO", venda);
+        admProducer.notificarAdm(
+        "EXCLUSAO",
+        "Venda excluída. ID: " + id
+);
     }
 
     private void validar(VendaDTO dto) {
