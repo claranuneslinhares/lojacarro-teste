@@ -19,4 +19,9 @@ public class AdmRabbitConfig {
     public Queue filaAdmEntrada() {
         return new Queue(FILA_MODULO, true);
     }
+
+    @Bean
+    public Queue filaLogs() {
+        return new Queue("dupla_maria_lucas", true);
+    }
 }
