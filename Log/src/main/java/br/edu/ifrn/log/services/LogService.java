@@ -1,3 +1,4 @@
+
 package br.edu.ifrn.log.services;
 
 import br.edu.ifrn.log.dto.LogMensagemDTO;
@@ -11,6 +12,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
 
 @Service
 public class LogService {
@@ -39,29 +43,17 @@ public class LogService {
 
         log.setDescricao(mensagem.getDescricao());
 
-        // Mantém a ação registrada anteriormente
         log.setAcao(
                 mensagem.getDescricao() != null
                         ? mensagem.getDescricao()
                         : mensagem.getOperacao()
         );
 
-        // Recupera a data e hora da mensagem
-        LocalDateTime dataHora;
-
-        try {
-            dataHora = mensagem.getDataHora() != null
-                    ? LocalDateTime.parse(mensagem.getDataHora())
-                    : LocalDateTime.now();
-
-        } catch (Exception e) {
-            dataHora = LocalDateTime.now();
-        }
+        LocalDateTime dataHora = converterData(mensagem.getDataHora());
 
         log.setTimestamp(dataHora);
         log.setData(dataHora.toLocalDate());
 
-        // Converte os dados adicionais para JSON
         try {
             if (mensagem.getDados() != null) {
                 log.setDados(
@@ -78,5 +70,33 @@ public class LogService {
         }
 
         return logRepository.save(log);
+    }
+
+    private LocalDateTime converterData(String valor) {
+
+        if (valor == null || valor.isBlank()) {
+            return LocalDateTime.now();
+        }
+
+        try {
+            return LocalDateTime.parse(valor);
+
+        } catch (Exception e) {
+            try {
+                return OffsetDateTime.parse(valor)
+                        .atZoneSameInstant(ZoneId.systemDefault())
+                        .toLocalDateTime();
+
+            } catch (Exception ex) {
+                try {
+                    return Instant.parse(valor)
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDateTime();
+
+                } catch (Exception erro) {
+                    return LocalDateTime.now();
+                }
+            }
+        }
     }
 }

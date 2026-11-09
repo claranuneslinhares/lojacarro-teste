@@ -1,3 +1,4 @@
+
 package br.edu.ifrn.adm.dto;
 
 public class MensagemAdmDTO {
@@ -7,6 +8,16 @@ public class MensagemAdmDTO {
     private String mensagem;
 
     public MensagemAdmDTO() {
+    }
+
+    public MensagemAdmDTO(
+            String moduloOrigem,
+            String tipoEvento,
+            String mensagem) {
+
+        this.moduloOrigem = moduloOrigem;
+        this.tipoEvento = tipoEvento;
+        this.mensagem = mensagem;
     }
 
     public String getModuloOrigem() {

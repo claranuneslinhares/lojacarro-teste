@@ -16,10 +16,15 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 
+@ConditionalOnProperty(
+    name = "app.log.legacy-receiver.enabled",
+    havingValue = "true"
+)
 @Component
 public class RabbitMQLogReceiver {
 

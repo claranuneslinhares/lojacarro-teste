@@ -1,7 +1,9 @@
+
 package br.edu.ifrn.testdrive.client;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class UsuarioClient {
@@ -15,6 +17,11 @@ public class UsuarioClient {
     }
 
     public boolean existeUsuario(Long id) {
+
+        if (id == null) {
+            return false;
+        }
+
         try {
             restClient.get()
                     .uri("/usuario/{id}", id)
@@ -23,8 +30,13 @@ public class UsuarioClient {
 
             return true;
 
-        } catch (Exception e) {
-            return false;
+        } catch (RestClientResponseException e) {
+
+            if (e.getStatusCode().is4xxClientError()) {
+                return false;
+            }
+
+            throw e;
         }
     }
 }

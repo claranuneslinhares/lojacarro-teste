@@ -1,6 +1,6 @@
 
 package br.edu.ifrn.vendas.services;
-
+import br.edu.ifrn.vendas.messaging.AdmMessageProducer;
 import br.edu.ifrn.vendas.client.CarroClient;
 import br.edu.ifrn.vendas.client.UsuarioClient;
 import br.edu.ifrn.vendas.dto.LogMensagemDTO;
@@ -19,36 +19,29 @@ import java.util.Map;
 public class VendaService {
 
     private final VendaRepository repository;
-    private final RabbitMQLogService rabbitMQLogService;
     private final CarroClient carroClient;
     private final UsuarioClient usuarioClient;
+    private final RabbitMQLogService logService;
+    private final AdmMessageProducer admProducer;
 
     public VendaService(
             VendaRepository repository,
-            RabbitMQLogService rabbitMQLogService,
             CarroClient carroClient,
-            UsuarioClient usuarioClient) {
+            UsuarioClient usuarioClient,
+            RabbitMQLogService logService,
+            AdmMessageProducer admProducer) {
 
         this.repository = repository;
-        this.rabbitMQLogService = rabbitMQLogService;
         this.carroClient = carroClient;
         this.usuarioClient = usuarioClient;
+        this.logService = logService;
+        this.admProducer = admProducer;
     }
 
     public Venda cadastrar(VendaDTO dto) {
-
-        validarDados(dto);
-
-        if (!carroClient.existeCarro(dto.getCarroId())) {
-            throw new IllegalArgumentException("Carro não encontrado.");
-        }
-
-        if (!usuarioClient.existeUsuario(dto.getUsuarioId())) {
-            throw new IllegalArgumentException("Usuário não encontrado.");
-        }
+        validar(dto);
 
         Venda venda = new Venda();
-
         venda.setCarroId(dto.getCarroId());
         venda.setUsuarioId(dto.getUsuarioId());
         venda.setValor(dto.getValor());
@@ -57,8 +50,12 @@ public class VendaService {
 
         Venda salva = repository.save(venda);
 
-        enviarLog("CADASTRO", salva,
-                "Cadastro de uma nova venda");
+        admProducer.notificarAdm(
+            "CADASTRO",
+            "Venda cadastrada. ID: " + salva.getId()
+        );
+
+        enviarLog("CADASTRO", salva);
 
         return salva;
     }
@@ -74,20 +71,11 @@ public class VendaService {
     }
 
     public Venda atualizar(Long id, VendaDTO dto) {
+        validar(dto);
 
         Venda venda = buscarPorId(id);
 
-        validarDados(dto);
-
-        if (!carroClient.existeCarro(dto.getCarroId())) {
-            throw new IllegalArgumentException("Carro não encontrado.");
-        }
-
-        if (!usuarioClient.existeUsuario(dto.getUsuarioId())) {
-            throw new IllegalArgumentException("Usuário não encontrado.");
-        }
-
-        if ("CANCELADA".equals(venda.getStatus())) {
+        if ("CANCELADA".equalsIgnoreCase(venda.getStatus())) {
             throw new IllegalArgumentException(
                     "Não é possível atualizar uma venda cancelada.");
         }
@@ -98,57 +86,62 @@ public class VendaService {
 
         Venda atualizada = repository.save(venda);
 
-        enviarLog("ATUALIZACAO", atualizada,
-                "Atualização de uma venda");
+        enviarLog("ATUALIZACAO", atualizada);
 
         return atualizada;
     }
 
     public Venda cancelar(Long id) {
-
         Venda venda = buscarPorId(id);
-
-        if ("CANCELADA".equals(venda.getStatus())) {
-            throw new IllegalArgumentException(
-                    "Esta venda já está cancelada.");
-        }
 
         venda.setStatus("CANCELADA");
 
         Venda cancelada = repository.save(venda);
 
-        enviarLog("CANCELAMENTO", cancelada,
-                "Cancelamento de uma venda");
+        enviarLog("CANCELAMENTO", cancelada);
 
         return cancelada;
     }
 
     public void excluir(Long id) {
-
         Venda venda = buscarPorId(id);
 
         repository.delete(venda);
 
-        enviarLog("EXCLUSAO", venda,
-                "Exclusão de uma venda");
+        enviarLog("EXCLUSAO", venda);
     }
 
-    private void validarDados(VendaDTO dto) {
+    private void validar(VendaDTO dto) {
 
-        if (dto.getCarroId() == null ||
-                dto.getUsuarioId() == null ||
-                dto.getValor() == null ||
+        if (dto == null ||
+                dto.getCarroId() == null ||
+                dto.getUsuarioId() == null) {
+
+            throw new IllegalArgumentException(
+                    "Carro e usuário são obrigatórios.");
+        }
+
+        if (dto.getValor() == null ||
                 dto.getValor().signum() <= 0) {
 
             throw new IllegalArgumentException(
-                    "Informe carro, usuário e um valor positivo.");
+                    "O valor da venda deve ser maior que zero.");
+        }
+
+        if (!usuarioClient.existeUsuario(dto.getUsuarioId())) {
+            throw new IllegalArgumentException(
+                    "Usuário não encontrado.");
+        }
+
+        if (!carroClient.existeCarro(
+                dto.getCarroId(), dto.getUsuarioId())) {
+
+            throw new IllegalArgumentException(
+                    "Carro não encontrado ou usuário sem permissão.");
         }
     }
 
-    private void enviarLog(
-            String operacao,
-            Venda venda,
-            String descricao) {
+    private void enviarLog(String operacao, Venda venda) {
 
         Map<String, Object> dados = new HashMap<>();
 
@@ -164,10 +157,10 @@ public class VendaService {
                 venda.getId(),
                 venda.getUsuarioId(),
                 LocalDateTime.now().toString(),
-                descricao,
+                "Operação " + operacao + " realizada na venda.",
                 dados
         );
 
-        rabbitMQLogService.enviarLog(mensagem);
+        logService.enviarLog(mensagem);
     }
 }

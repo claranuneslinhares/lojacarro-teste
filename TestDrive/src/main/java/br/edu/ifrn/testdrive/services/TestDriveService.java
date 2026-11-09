@@ -122,9 +122,11 @@ public class TestDriveService {
                     "A data do test drive deve ser futura.");
         }
 
-        if (!carroClient.existeCarro(dto.getCarroId())) {
+        if (!carroClient.existeCarro(
+            dto.getCarroId(), dto.getUsuarioId())) {
             throw new IllegalArgumentException("Carro não encontrado.");
         }
+        
 
         if (!usuarioClient.existeUsuario(dto.getUsuarioId())) {
             throw new IllegalArgumentException("Usuário não encontrado.");
