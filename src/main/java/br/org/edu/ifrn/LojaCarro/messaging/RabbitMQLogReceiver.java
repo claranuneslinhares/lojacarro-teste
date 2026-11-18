@@ -28,10 +28,10 @@ import java.nio.charset.StandardCharsets;
 @Component
 public class RabbitMQLogReceiver {
 
-    private static final String HOST = "54.20.84.206";
+    private static final String HOST = "localhost";
     private static final int PORTA = 5672;
-    private static final String USUARIO = "aluno";
-    private static final String SENHA = "12345";
+    private static final String USUARIO = "guest";
+    private static final String SENHA = "guest";
     private static final String FILA = "dupla_maria_lucas";
 
     private Connection connection;

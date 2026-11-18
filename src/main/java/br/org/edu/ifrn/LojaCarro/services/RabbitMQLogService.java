@@ -1,62 +1,41 @@
-
 package br.org.edu.ifrn.LojaCarro.services;
 
 import br.org.edu.ifrn.LojaCarro.dto.LogMensagemDTO;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Service;
-
-import java.nio.charset.StandardCharsets;
 
 @Service
 public class RabbitMQLogService {
 
-    private static final String HOST = "15.228.215.36";
-    private static final int PORTA = 5672;
-    private static final String USUARIO = "aluno";
-    private static final String SENHA = "12345";
     private static final String FILA = "dupla_maria_lucas";
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final RabbitTemplate rabbitTemplate;
+    private final ObjectMapper mapper;
+
+    public RabbitMQLogService(RabbitTemplate rabbitTemplate, ObjectMapper mapper) {
+        this.rabbitTemplate = rabbitTemplate;
+        this.mapper = mapper;
+    }
 
     public void enviarLog(LogMensagemDTO mensagem) {
-
         try {
-            String json = objectMapper.writeValueAsString(mensagem);
+            rabbitTemplate.convertAndSend("", FILA, mapper.writeValueAsString(mensagem));
+        } catch (JsonProcessingException erro) {
+            throw new IllegalStateException("Falha ao serializar o registro de auditoria.", erro);
+        }
+    }
 
-            ConnectionFactory factory = new ConnectionFactory();
-            factory.setHost(HOST);
-            factory.setPort(PORTA);
-            factory.setUsername(USUARIO);
-            factory.setPassword(SENHA);
+    @Configuration(proxyBeanMethods = false)
+    static class ConfiguracaoFila {
 
-            try (Connection connection = factory.newConnection();
-                 Channel channel = connection.createChannel()) {
-
-                channel.queueDeclare(
-                        FILA, true, false, false, null
-                );
-
-                channel.basicPublish(
-                        "",
-                        FILA,
-                        null,
-                        json.getBytes(StandardCharsets.UTF_8)
-                );
-
-                System.out.println("LOG ENVIADO: " + json);
-            }
-
-        } catch (Exception e) {
-            throw new RuntimeException(
-                    "Erro ao enviar log para o RabbitMQ", e
-            );
+        @Bean
+        Queue filaAuditoriaLojaCarro() {
+            return new Queue(FILA, true);
         }
     }
 }

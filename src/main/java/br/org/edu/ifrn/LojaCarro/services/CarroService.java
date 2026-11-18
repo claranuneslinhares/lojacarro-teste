@@ -1,339 +1,135 @@
 package br.org.edu.ifrn.LojaCarro.services;
 
-import br.org.edu.ifrn.LojaCarro.CarroException;
+import br.org.edu.ifrn.LojaCarro.dto.CarroRequest;
+import br.org.edu.ifrn.LojaCarro.dto.LogMensagemDTO;
 import br.org.edu.ifrn.LojaCarro.model.Carro;
+import br.org.edu.ifrn.LojaCarro.model.SituacaoCarro;
 import br.org.edu.ifrn.LojaCarro.repository.CarroRepository;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.AmqpException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDate;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 @Service
 public class CarroService {
 
-    private static final Logger logger =
-            LogManager.getLogger(CarroService.class);
+    private static final Logger log = LoggerFactory.getLogger(CarroService.class);
 
-    @Autowired
-    public CarroRepository carroRepository;
+    private final CarroRepository repository;
+    private final FotoCarroService fotos;
+    private final RabbitMQLogService auditoria;
 
-
-    // CADASTRAR CARRO
-    public Carro save(Carro c) {
-
-        logger.info("Iniciando cadastro do carro: {}", c.getModelo());
-
-        validarModelo(c.getModelo());
-        validarPreco(c.getPreco());
-
-        Carro carroSalvo = carroRepository.save(c);
-
-        logger.info(
-                "Carro cadastrado com sucesso. ID: {} - Modelo: {}",
-                carroSalvo.getId(),
-                carroSalvo.getModelo()
-        );
-
-        return carroSalvo;
+    public CarroService(
+            CarroRepository repository,
+            FotoCarroService fotos,
+            RabbitMQLogService auditoria
+    ) {
+        this.repository = repository;
+        this.fotos = fotos;
+        this.auditoria = auditoria;
     }
 
+    public Carro cadastrar(CarroRequest dados, MultipartFile foto, Long usuarioId) {
+        validarAnos(dados);
+        String arquivo = fotos.salvar(foto);
+        return persistir(new Carro(dados, arquivo), arquivo, "CADASTRO", usuarioId);
+    }
 
-    // EXCLUIR POR ID
-    public void deleteById(Long id) {
+    public Carro atualizar(Long id, CarroRequest dados, MultipartFile foto, Long usuarioId) {
+        validarAnos(dados);
+        Carro carro = buscarParaGestao(id);
+        String arquivo = foto == null || foto.isEmpty() ? null : fotos.salvar(foto);
 
-        logger.info("Solicitação para excluir carro ID: {}", id);
-
-        if (id <= 0) {
-
-            logger.error(
-                    "Tentativa de excluir carro com ID inválido: {}",
-                    id
-            );
-
-            throw new CarroException(
-                    "O ID do carro não pode ser negativo. ID fornecido: " + id
+        if (arquivo == null && carro.getArquivoFoto() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Inclua uma foto para atualizar este veículo."
             );
         }
 
-        carroRepository.deleteById(id);
-
-        logger.info(
-                "Carro ID {} excluído com sucesso.",
-                id
-        );
+        carro.atualizar(dados, arquivo);
+        return persistir(carro, arquivo, "ATUALIZACAO", usuarioId);
     }
 
+    public void desativar(Long id, Long usuarioId) {
+        Carro carro = buscarParaGestao(id);
+        carro.desativar();
+        persistir(carro, null, "EXCLUSAO_LOGICA", usuarioId);
+    }
 
-    // BUSCAR POR ID
-    public Optional<Carro> findById(Long id) {
+    public List<Carro> listarGestao() {
+        return repository.findAll();
+    }
 
-        logger.info(
-                "Consultando carro pelo ID: {}",
-                id
-        );
+    public Carro buscarParaGestao(Long id) {
+        return repository.findById(id).orElseThrow(this::naoEncontrado);
+    }
 
-        if (id <= 0) {
+    public Carro buscarNoCatalogo(Long id) {
+        return repository.findByIdAndSituacaoAndArquivoFotoIsNotNull(id, SituacaoCarro.DISPONIVEL)
+                .orElseThrow(this::naoEncontrado);
+    }
 
-            logger.error(
-                    "Tentativa de consultar carro com ID inválido: {}",
-                    id
-            );
-
-            throw new CarroException(
-                    "O ID do carro não pode ser negativo. ID fornecido: " + id
+    public List<Carro> listar(
+            String marca, String modelo, Integer ano, BigDecimal precoMin, BigDecimal precoMax
+    ) {
+        if (precoMin != null && precoMax != null && precoMin.compareTo(precoMax) > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "O preço mínimo deve ser menor ou igual ao máximo."
             );
         }
 
-        Optional<Carro> carro = carroRepository.findById(id);
+        return repository.buscarCatalogo(
+                SituacaoCarro.DISPONIVEL, limpar(marca), limpar(modelo), ano, precoMin, precoMax
+        );
+    }
 
-        if (carro.isPresent()) {
-
-            logger.info(
-                    "Carro encontrado. ID: {}",
-                    id
-            );
-
-        } else {
-
-            logger.warn(
-                    "Carro ID {} não encontrado.",
-                    id
-            );
+    private Carro persistir(Carro carro, String arquivoNovo, String operacao, Long usuarioId) {
+        Carro salvo;
+        try {
+            salvo = repository.saveAndFlush(carro);
+        } catch (RuntimeException erro) {
+            fotos.excluirAposFalha(arquivoNovo, erro);
+            throw erro;
         }
 
-        return carro;
-    }
-
-
-    // LISTAR TODOS
-    public List<Carro> findAll() {
-
-        logger.info("Consultando todos os carros cadastrados.");
-
-        List<Carro> carros = carroRepository.findAll();
-
-        logger.info(
-                "Quantidade de carros encontrados: {}",
-                carros.size()
-        );
-
-        return carros;
-    }
-
-
-    // BUSCAR POR MODELO
-    public Optional<Carro> findByModelo(String modelo) {
-
-        logger.info(
-                "Consultando carro pelo modelo: {}",
-                modelo
-        );
-
-        validarModelo(modelo);
-
-        Optional<Carro> carro =
-                carroRepository.findFirstByModelo(modelo);
-
-        if (carro.isPresent()) {
-
-            logger.info(
-                    "Carro encontrado pelo modelo: {}",
-                    modelo
-            );
-
-        } else {
-
-            logger.warn(
-                    "Nenhum carro encontrado com o modelo: {}",
-                    modelo
-            );
+        try {
+            auditoria.enviarLog(new LogMensagemDTO(
+                    "CARRO", operacao, "Carro", salvo.getId(), usuarioId,
+                    Instant.now().toString(), operacao + " de veículo",
+                    Map.of("modelo", salvo.getModelo(), "situacao", salvo.getSituacao().name())
+            ));
+        } catch (AmqpException | IllegalStateException erro) {
+            log.warn("Veículo {} gravado. Falha ao publicar auditoria de {}.",
+                    salvo.getId(), operacao, erro);
         }
 
-        return carro;
+        return salvo;
     }
 
+    private void validarAnos(CarroRequest dados) {
+        int fabricacao = dados.anoFabricacao();
+        int modelo = dados.anoModelo();
 
-    // CADASTRO LEGADO
-    public Carro saveFromLegacy(String modelo, double preco) {
-
-        logger.info(
-                "Cadastro legado de carro. Modelo: {}",
-                modelo
-        );
-
-        Carro carro =
-                new Carro(modelo, LocalDate.now().getYear(), preco);
-
-        return save(carro);
-    }
-
-
-    // ATUALIZAR POR MODELO
-    public Carro updateByModelo(String modelo, double preco) {
-
-        logger.info(
-                "Atualizando carro pelo modelo: {}",
-                modelo
-        );
-
-        Carro carro = localizarCarroPorModelo(modelo);
-
-        validarPreco(preco);
-
-        carro.setPreco(preco);
-
-        Carro atualizado =
-                carroRepository.save(carro);
-
-        logger.info(
-                "Carro {} atualizado com sucesso.",
-                modelo
-        );
-
-        return atualizado;
-    }
-
-
-    // EXCLUIR POR MODELO
-    public Carro deleteByModelo(String modelo) {
-
-        logger.info(
-                "Excluindo carro pelo modelo: {}",
-                modelo
-        );
-
-        Carro carro =
-                localizarCarroPorModelo(modelo);
-
-        carroRepository.delete(carro);
-
-        logger.info(
-                "Carro {} excluído com sucesso.",
-                modelo
-        );
-
-        return carro;
-    }
-
-
-    // ATUALIZAR POR ID
-    public Carro update(Carro c) {
-
-        logger.info(
-                "Iniciando atualização do carro ID: {}",
-                c.getId()
-        );
-
-        if (c.getId() == null) {
-
-            logger.error(
-                    "Tentativa de atualizar carro sem ID."
-            );
-
-            throw new CarroException(
-                    "O ID do carro para atualização não pode ser nulo."
-            );
-        }
-
-        if (!carroRepository.existsById(c.getId())) {
-
-            logger.warn(
-                    "Carro com ID {} não encontrado para atualização.",
-                    c.getId()
-            );
-
-            throw new CarroException(
-                    "Carro com ID " + c.getId() +
-                            " não encontrado para atualização."
-            );
-        }
-
-        validarModelo(c.getModelo());
-        validarPreco(c.getPreco());
-
-        Carro atualizado =
-                carroRepository.save(c);
-
-        logger.info(
-                "Carro ID {} atualizado com sucesso.",
-                c.getId()
-        );
-
-        return atualizado;
-    }
-
-
-    // VALIDAR MODELO
-    private void validarModelo(String modelo) {
-
-        if (modelo == null || modelo.trim().isEmpty()) {
-
-            logger.error(
-                    "Modelo do carro informado está vazio."
-            );
-
-            throw new CarroException(
-                    "O modelo do carro não pode estar vazio."
-            );
-        }
-
-        if (modelo.length() >= 5) {
-
-            logger.warn(
-                    "Modelo {} possui tamanho inválido: {} caracteres.",
-                    modelo,
-                    modelo.length()
-            );
-
-            throw new CarroException(
-                    "O modelo do carro deve ter menos de 5 caracteres. " +
-                            "Tamanho atual: " + modelo.length()
+        if (modelo < fabricacao || modelo > fabricacao + 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "O ano do modelo deve ser o de fabricação ou o seguinte."
             );
         }
     }
 
-
-    // VALIDAR PREÇO
-    private void validarPreco(double preco) {
-
-        if (preco < 0) {
-
-            logger.error(
-                    "Preço inválido informado: {}",
-                    preco
-            );
-
-            throw new CarroException(
-                    "O preço do carro não pode ser negativo. " +
-                            "Valor fornecido: " + preco
-            );
-        }
+    private String limpar(String valor) {
+        return valor == null || valor.isBlank() ? null : valor.strip();
     }
 
-
-    // LOCALIZAR CARRO
-    private Carro localizarCarroPorModelo(String modelo) {
-
-        validarModelo(modelo);
-
-        return carroRepository
-                .findFirstByModelo(modelo)
-                .orElseThrow(() -> {
-
-                    logger.warn(
-                            "Carro com modelo {} não encontrado.",
-                            modelo
-                    );
-
-                    return new CarroException(
-                            "Carro com modelo " +
-                                    modelo +
-                                    " não encontrado."
-                    );
-                });
+    private ResponseStatusException naoEncontrado() {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Veículo não encontrado.");
     }
 }

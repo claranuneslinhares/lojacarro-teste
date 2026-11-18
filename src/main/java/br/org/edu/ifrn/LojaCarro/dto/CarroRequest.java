@@ -1,44 +1,21 @@
 package br.org.edu.ifrn.LojaCarro.dto;
 
-public class CarroRequest {
+import br.org.edu.ifrn.LojaCarro.model.SituacaoCarro;
+import jakarta.validation.constraints.*;
 
-    private String modelo;
-    private int ano;
-    private double preco;
-    private Long usuarioId;
+import java.math.BigDecimal;
 
-    public CarroRequest() {
-    }
-
-    public String getModelo() {
-        return modelo;
-    }
-
-    public void setModelo(String modelo) {
-        this.modelo = modelo;
-    }
-
-    public int getAno() {
-        return ano;
-    }
-
-    public void setAno(int ano) {
-        this.ano = ano;
-    }
-
-    public double getPreco() {
-        return preco;
-    }
-
-    public void setPreco(double preco) {
-        this.preco = preco;
-    }
-
-    public Long getUsuarioId() {
-        return usuarioId;
-    }
-
-    public void setUsuarioId(Long usuarioId) {
-        this.usuarioId = usuarioId;
-    }
+public record CarroRequest(
+        @NotBlank @Size(max = 80) String marca,
+        @NotBlank @Size(max = 120) String modelo,
+        @NotNull @Min(1886) @Max(2100) Integer anoFabricacao,
+        @NotNull @Min(1886) @Max(2100) Integer anoModelo,
+        @NotBlank @Size(max = 50) String cor,
+        @NotNull @PositiveOrZero Integer quilometragem,
+        @NotBlank @Size(max = 50) String combustivel,
+        @NotBlank @Size(max = 50) String transmissao,
+        @NotNull @Positive @Digits(integer = 10, fraction = 2) BigDecimal preco,
+        @NotBlank @Size(max = 2000) String descricao,
+        SituacaoCarro situacao
+) {
 }
